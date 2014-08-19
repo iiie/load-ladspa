@@ -1,0 +1,45 @@
+#!/bin/sh
+
+# See http://askubuntu.com/questions/95716/automatically-adjust-the-volume-based-on-content
+
+# Find name of default sink with "pacmd list-sinks"
+DEFAULT_SINK=alsa_output.pci-0000_00_1b.0.analog-stereo
+
+# Find compressor plugin name in "ls /usr/lib/ladspa/" dysonCompressor, if not installed, install swh-plugins
+COMPRESSOR_PLUGIN=dyson_compress_1403
+
+load_ladspa_sinks () {
+  # LADSPA-pugin to filter the sound output through pulseaudio
+  pacmd load-module module-ladspa-sink sink_name=ladspa_sink master=$DEFAULT_SINK plugin=$COMPRESSOR_PLUGIN label=dysonCompress control=0,1,0.5,0.99
+
+  # To avoid clipping of playback we may also combine this plugin with a limiter after compression. We may use the fast_lookahead_limiter for this with the master sink being now our just created lasdpa_sink from above
+  pacmd load-module module-ladspa-sink sink_name=ladspa_normalized master=ladspa_sink plugin=fast_lookahead_limiter_1913 label=fastLookaheadLimiter control=10,0,0.8
+}
+
+unload_named_sink () {
+  pacmd unload-module `pacmd list-modules|grep -B2 "argument: <sink_name=$1"|grep index|cut -f6 -d" "`
+}
+
+unload_ladspa_sinks () {
+  unload_named_sink ladspa_normalized
+  unload_named_sink ladspa_sink
+}
+named_sink_index () {
+  pacmd list-sinks|grep -B1 "name: <$1>"|grep index|cut -f6 -d" "
+}
+
+CURRENT_SINK=`pactl info|grep "Default Sink: "|cut -f3 -d" "`
+if [ "$CURRENT_SINK" = "$DEFAULT_SINK" ] ; then
+  #load_ladspa_sinks
+  if [ `pacmd list-sinks|grep "name: <ladspa_normalized>"|wc -l` -lt 1 ] ; then
+    load_ladspa_sinks
+  fi
+  NORMALIZED_INDEX=$(named_sink_index ladspa_normalized)
+  pacmd set-default-sink $NORMALIZED_INDEX
+else
+  DEFAULT_INDEX=$(named_sink_index $DEFAULT_SINK)
+  pacmd set-default-sink $DEFAULT_INDEX
+  if [ `pacmd list-sinks|grep "name: <ladspa_normalized>"|wc -l` -gt 0 ] ; then
+    unload_ladspa_sinks
+  fi
+fi
