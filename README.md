@@ -12,6 +12,7 @@ Installation steps:
 
 References:
  * http://askubuntu.com/questions/95716/automatically-adjust-the-volume-based-on-content
+ * http://askubuntu.com/questions/43950/how-can-i-apply-a-ladspa-plugin-to-a-pulseaudio-stream
 
 Installing the compressor:
  1. apt-get install swh-plugins
